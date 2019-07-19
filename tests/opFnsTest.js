@@ -11,6 +11,12 @@ const U256UpperBound = utils.TWO_POW256.sub(new BN('1', 2))  // 2^256-1
 const S256UpperBound = TWO_POW255.sub(new BN('1', 2))        // 2^255-1
 const S256LowerBound = TWO_POW255                            // -2^255
 
+var runState = {
+  validators: [new BN('65c7237cd0c19c2a163dab6094db8aa98754cbd4', 16),
+    new BN('e9dC86953CeC431e0E74c83EE8b2CB20F45dFA28', 16)],
+  freegas: false
+}
+
 tape('test the integer arithmetic opcodes', function (test) {
   var a = new BN('10', 2) // 2
   var b = new BN('01', 2) // 1
@@ -77,5 +83,64 @@ tape('test the fixed-point arithmetic opcodes', function (test) {
   test.throws(function () { opFns.SFDIV(S256LowerBound, c, zero, null) }, overflowError)
   test.throws(function () { opFns.SFDIV(S256UpperBound, c, a, null) }, overflowError)
 
+  test.end()
+})
+
+tape('test RAND opcode', function (test) {
+  // Generate 1000 random numbers to see if there are duplicates
+  var randList = []
+  var testSum = 1000
+  var isDuplicates = false
+  var i
+  for (i = 0; i < testSum; i++) {
+    randList.push(opFns.RAND())
+  }
+  randList.sort(function (a, b) {
+    return a.cmp(b)
+  })
+  for (i = 1; i < testSum; i++) {
+    if (randList[i].cmp(randList[i - 1]) === 0) {
+      isDuplicates = true
+      break
+    }
+  }
+  test.ok(!isDuplicates)
+  test.end()
+})
+
+tape('test ISVALIDATOR opcode', function (test) {
+  // only 65c7237 and e9dC869 are validators
+  test.ok(opFns.ISVALIDATOR(new BN('65c7237cd0c19c2a163dab6094db8aa98754cbd4', 16), runState))
+  test.ok(!opFns.ISVALIDATOR(new BN('561aD41faeb6A06Da9F80aDd2cb1129318Ef4eA6', 16), runState))
+  test.end()
+})
+
+tape('test FREEGAS opcode', function (test) {
+  opFns.FREEGAS(runState)
+  test.ok(runState.freegas)
+  test.end()
+})
+
+tape('test whether the contract can be executed normally', function (test) {
+  var Buffer = require('safe-buffer').Buffer // use for Node.js <4.5.0
+  var VM = require('../index.js')
+
+  // create a new VM instance
+  var vm = new VM()
+  
+  // bytecode of ./opFnsTest.sol
+  var code = '608060405234801561001057600080fd5b506000806000600154f9016000819055503373ffffffffffffffffffffffffffffffffffffffff16f692506107d091506130398280156100775781817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04101561007657fe5b5b02905050505060fd8061008b6000396000f3006080604052600436106049576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff1680634f8dd50d14604e57806386e321e414608c575b600080fd5b348015605957600080fd5b5060766004803603810190808035906020019092919050505060b4565b6040518082815260200191505060405180910390f35b348015609757600080fd5b50609e60c8565b6040518082815260200191505060405180910390f35b6000816001819055506001549050919050f8565b600080549050905600a165627a7a72305820fefacbb863d6617b7736b3c92a5195bb6460904f5728cdf39b18b9a207e1dee20029'
+  
+  vm.on('step', function (data) {
+    console.log(data.opcode.name)
+  })
+
+  vm.runCode({
+    code: Buffer.from(code, 'hex'),
+    gasLimit: Buffer.from('ffffffff', 'hex')
+  }, function (err, results) {
+    console.log('gasUsed: ' + results.gasUsed.toString())
+    test.pass(err == null)
+  })
   test.end()
 })
