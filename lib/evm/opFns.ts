@@ -5,6 +5,11 @@ import { RunState } from './interpreter'
 
 const MASK_160 = new BN(1).shln(160).subn(1)
 
+const TWO_POW255 = utils.TWO_POW256.div(new BN('10', 2)) // 2^255
+const U256UpperBound = utils.TWO_POW256.sub(new BN('1', 2)) // 2^256-1
+const S256UpperBound = TWO_POW255.sub(new BN('1', 2)).fromTwos(256) // 2^255-1
+const S256LowerBound = TWO_POW255.fromTwos(256) // -2^255
+
 // Find Ceil(`this` / `num`)
 function divCeil(a: BN, b: BN) {
   const div = a.div(b)
@@ -19,6 +24,14 @@ function divCeil(a: BN, b: BN) {
 
 function addressToBuffer(address: BN) {
   return address.and(MASK_160).toArrayLike(Buffer, 'be', 20)
+}
+
+function InU256(x: BN) {
+  return x.cmp(U256UpperBound) <= 0 && !x.isNeg()
+}
+
+function InS256(x: BN) {
+  return x.cmp(S256LowerBound) >= 0 && x.cmp(S256UpperBound) <= 0
 }
 
 export interface SyncOpHandler {
@@ -161,6 +174,60 @@ export const handlers: { [k: string]: OpHandler } = {
     }
     runState.stack.push(val)
   },
+  UADD: function(runState: RunState) {
+    const [a, b] = runState.stack.popN(2)
+    const c = a.add(b)
+    if (!InU256(c)) {
+      trap(ERROR.OVERFLOW_ERROR)
+    }
+    runState.stack.push(c)
+  },
+  SADD: function(runState: RunState) {
+    let [a, b] = runState.stack.popN(2)
+    a = a.fromTwos(256)
+    b = b.fromTwos(256)
+    const c = a.add(b)
+    if (!InS256(c)) {
+      trap(ERROR.OVERFLOW_ERROR)
+    }
+    runState.stack.push(c.toTwos(256))
+  },
+  USUB: function(runState: RunState) {
+    const [a, b] = runState.stack.popN(2)
+    const c = a.sub(b)
+    if (!InU256(c)) {
+      trap(ERROR.OVERFLOW_ERROR)
+    }
+    runState.stack.push(c)
+  },
+  SSUB: function(runState: RunState) {
+    let [a, b] = runState.stack.popN(2)
+    a = a.fromTwos(256)
+    b = b.fromTwos(256)
+    const c = a.sub(b)
+    if (!InS256(c)) {
+      trap(ERROR.OVERFLOW_ERROR)
+    }
+    runState.stack.push(c.toTwos(256))
+  },
+  UMUL: function(runState: RunState) {
+    const [a, b] = runState.stack.popN(2)
+    const c = a.mul(b)
+    if (!InU256(c)) {
+      trap(ERROR.OVERFLOW_ERROR)
+    }
+    runState.stack.push(c)
+  },
+  SMUL: function(runState: RunState) {
+    let [a, b] = runState.stack.popN(2)
+    a = a.fromTwos(256)
+    b = b.fromTwos(256)
+    const c = a.mul(b)
+    if (!InS256(c)) {
+      trap(ERROR.OVERFLOW_ERROR)
+    }
+    runState.stack.push(c.toTwos(256))
+  },
   // 0x10 range - bit ops
   LT: function(runState: RunState) {
     const [a, b] = runState.stack.popN(2)
@@ -290,6 +357,48 @@ export const handlers: { [k: string]: OpHandler } = {
     )
     const r = new BN(utils.keccak256(data))
     runState.stack.push(r)
+  },
+  UFMUL: function(runState: RunState) {
+    const [a, b, N] = runState.stack.popN(3)
+    const base10 = new BN('1010', 2)
+    const c = a.mul(b).div(base10.pow(N))
+    if (!InU256(c)) {
+      trap(ERROR.OVERFLOW_ERROR)
+    }
+    runState.stack.push(c)
+  },
+  SFMUL: function(runState: RunState) {
+    let [a, b, N] = runState.stack.popN(3)
+    a = a.fromTwos(256)
+    b = b.fromTwos(256)
+    N = N.fromTwos(256)
+    const base10 = new BN('1010', 2)
+    const c = a.mul(b).div(base10.pow(N))
+    if (!InS256(c)) {
+      trap(ERROR.OVERFLOW_ERROR)
+    }
+    runState.stack.push(c.toTwos(256))
+  },
+  UFDIV: function(runState: RunState) {
+    const [a, b, N] = runState.stack.popN(3)
+    const base10 = new BN('1010', 2)
+    const c = a.mul(base10.pow(N)).div(b)
+    if (!InU256(c)) {
+      trap(ERROR.OVERFLOW_ERROR)
+    }
+    runState.stack.push(c)
+  },
+  SFDIV: function(runState: RunState) {
+    let [a, b, N] = runState.stack.popN(3)
+    a = a.fromTwos(256)
+    b = b.fromTwos(256)
+    N = N.fromTwos(256)
+    const base10 = new BN('1010', 2)
+    const c = a.mul(base10.pow(N)).div(b)
+    if (!InS256(c)) {
+      trap(ERROR.OVERFLOW_ERROR)
+    }
+    runState.stack.push(c.toTwos(256))
   },
   // 0x30 range - closure state
   ADDRESS: function(runState: RunState) {
@@ -763,6 +872,27 @@ export const handlers: { [k: string]: OpHandler } = {
     // Write return data to memory
     writeCallOutput(runState, outOffset, outLength)
     runState.stack.push(ret)
+  },
+  ISVALIDATOR: function(runState: RunState) {
+    let [address] = runState.stack.popN(1)
+    let isValidator = 0 // false
+    const validators = [
+      new BN('65c7237cd0c19c2a163dab6094db8aa98754cbd4', 16),
+      new BN('e9dC86953CeC431e0E74c83EE8b2CB20F45dFA28', 16),
+    ]
+    for (let i = 0; i < validators.length; i++) {
+      if (address.cmp(validators[i]) === 0) {
+        isValidator = 1 // true
+        break
+      }
+    }
+    runState.stack.push(new BN(isValidator, 2))
+  },
+  FREEGAS: function(runState: RunState) {
+    //runState.freegas = true
+  },
+  RAND: function(runState) {
+    return new BN(utils.keccak256(Math.random() * 10000000000))
   },
   STATICCALL: async function(runState: RunState) {
     const value = new BN(0)

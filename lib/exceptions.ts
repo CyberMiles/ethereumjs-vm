@@ -10,6 +10,7 @@ export enum ERROR {
   INTERNAL_ERROR = 'internal error',
   CREATE_COLLISION = 'create collision',
   STOP = 'stop',
+  OVERFLOW_ERROR = 'overflow error',
 }
 
 export class VmError {

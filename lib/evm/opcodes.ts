@@ -10,9 +10,9 @@ const codes: any = {
   // 0x0 range - arithmetic ops
   // name, baseCost, dynamic, async
   0x00: ['STOP', 0, false],
-  0x01: ['ADD', 3, false],
-  0x02: ['MUL', 5, false],
-  0x03: ['SUB', 3, false],
+  0x01: ['UADD', 3, false],
+  0x02: ['UMUL', 5, false],
+  0x03: ['USUB', 3, false],
   0x04: ['DIV', 5, false],
   0x05: ['SDIV', 5, false],
   0x06: ['MOD', 5, false],
@@ -21,6 +21,9 @@ const codes: any = {
   0x09: ['MULMOD', 8, false],
   0x0a: ['EXP', 10, false],
   0x0b: ['SIGNEXTEND', 5, false],
+  0x0c: ['SADD', 3, false],
+  0x0d: ['SSUB', 3, false],
+  0x0e: ['SMUL', 3, false],
 
   // 0x10 range - bit ops
   0x10: ['LT', 3, false],
@@ -40,6 +43,10 @@ const codes: any = {
 
   // 0x20 range - crypto
   0x20: ['SHA3', 30, false],
+  0x2a: ['UFMUL', 8, false],
+  0x2b: ['SFMUL', 8, false],
+  0x2c: ['UFDIV', 8, false],
+  0x2d: ['SFDIV', 8, false],
 
   // 0x30 range - closure state
   0x30: ['ADDRESS', 2, true],
@@ -163,6 +170,9 @@ const codes: any = {
   0xf3: ['RETURN', 0, false],
   0xf4: ['DELEGATECALL', 700, true, true],
   0xf5: ['CREATE2', 32000, true, true],
+  0xf6: ['ISVALIDATOR', 3, false],
+  0xf8: ['FREEGAS', 3, false],
+  0xf9: ['RAND', 5, false],
   0xfa: ['STATICCALL', 700, true, true],
   0xfd: ['REVERT', 0, false],
 
