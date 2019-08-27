@@ -892,7 +892,7 @@ export const handlers: { [k: string]: OpHandler } = {
     //runState.freegas = true
   },
   RAND: function(runState) {
-    return new BN(utils.keccak256(Math.random() * 10000000000))
+    runState.stack.push(new BN(utils.keccak256(Math.random() * 10000000000)))
   },
   STATICCALL: async function(runState: RunState) {
     const value = new BN(0)
